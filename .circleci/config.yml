@@ -18,7 +18,6 @@ parameters:
 # ─── Orbs ──────────────────────────────────────────────────────────────────────
 
 orbs:
-  slack: circleci/slack@4.8.0
   node: circleci/node@5.2.0
 
 # ─── Executors ─────────────────────────────────────────────────────────────────
@@ -85,18 +84,33 @@ commands:
 
   notify-slack-on-failure:
     steps:
-      - slack/notify:
-          event: fail
-          template: basic_fail_1
-          channel: $SLACK_CHANNEL_ID
-          mentions: "@here"
+      - run:
+          name: Notify Slack (on failure)
+          when: on_fail
+          command: |
+            if [ -z "$SLACK_BOT_TOKEN" ] || [ -z "$SLACK_CHANNEL_ID" ]; then
+              echo "SLACK_BOT_TOKEN / SLACK_CHANNEL_ID not set - skipping Slack notification"
+              exit 0
+            fi
+            curl -s -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"channel\":\"$SLACK_CHANNEL_ID\",\"text\":\":x: *${CIRCLE_PROJECT_REPONAME}* build failed on \`${CIRCLE_BRANCH}\` — <${CIRCLE_BUILD_URL}|View build>\"}"
 
   notify-slack-on-success:
     steps:
-      - slack/notify:
-          event: pass
-          template: basic_success_1
-          channel: $SLACK_CHANNEL_ID
+      - run:
+          name: Notify Slack (on success)
+          when: on_success
+          command: |
+            if [ -z "$SLACK_BOT_TOKEN" ] || [ -z "$SLACK_CHANNEL_ID" ]; then
+              echo "SLACK_BOT_TOKEN / SLACK_CHANNEL_ID not set - skipping Slack notification"
+              exit 0
+            fi
+            curl -s -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"channel\":\"$SLACK_CHANNEL_ID\",\"text\":\":white_check_mark: *${CIRCLE_PROJECT_REPONAME}* build passed on \`${CIRCLE_BRANCH}\` — <${CIRCLE_BUILD_URL}|View build>\"}"
 
 # ─── Jobs ──────────────────────────────────────────────────────────────────────
 
