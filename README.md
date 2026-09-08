@@ -143,6 +143,28 @@ local runs stay silent by default.
 
 ## CircleCI Setup
 
+### Docker executor
+
+CI jobs run inside Microsoft's official Playwright Docker image instead of a
+plain Node image:
+
+```yaml
+executors:
+  playwright-executor:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.62.1-jammy
+```
+
+This image ships Ubuntu Jammy with all system dependencies and browser
+binaries (Chromium, Firefox, WebKit) already installed, so CI doesn't need to
+run `npx playwright install` on every build. Node.js, project dependencies,
+and the test run itself still happen as separate steps on top of that base.
+
+> **Keep the image tag in sync with `@playwright/test`'s version in
+> `package.json`.** If they drift, the test runner's expected browser
+> revision won't match what's baked into the image and tests fail with
+> `Executable doesn't exist at /ms-playwright/...`.
+
 ### Environment Variables (set in CircleCI project settings)
 
 | Variable              | Description                          |
