@@ -1,5 +1,7 @@
 # Sauce Demo Web Automation Framework
 
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/mercianov/web-test-automation-mercia/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/mercianov/web-test-automation-mercia/tree/main)
+
 Playwright-based web automation for [Sauce Demo](https://www.saucedemo.com/), a public
 e-commerce demo site that I use for showcase automation demo.
 
