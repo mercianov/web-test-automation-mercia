@@ -1,0 +1,170 @@
+version: 2.1
+
+# ─── Parameters ────────────────────────────────────────────────────────────────
+# These can be overridden when triggering a pipeline via the CircleCI API or UI.
+
+parameters:
+  tags:
+    description: >
+      Playwright grep pattern to filter tests, e.g. @smoke or @regression.
+      Leave empty to run the full suite.
+    type: string
+    default: "@smoke"
+  workers:
+    description: "Number of parallel workers"
+    type: integer
+    default: 4
+
+# ─── Orbs ──────────────────────────────────────────────────────────────────────
+
+orbs:
+  slack: circleci/slack@4.8.0
+  node: circleci/node@5.2.0
+
+# ─── Executors ─────────────────────────────────────────────────────────────────
+
+executors:
+  playwright-executor:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.49.0-jammy
+    resource_class: medium
+    environment:
+      NODE_ENV: ci
+
+# ─── Commands ──────────────────────────────────────────────────────────────────
+
+commands:
+  install-deps:
+    description: "Install Node.js dependencies"
+    steps:
+      - node/install:
+          node-version: "20"
+      - restore_cache:
+          keys:
+            - npm-cache-v1-{{ checksum "package-lock.json" }}
+            - npm-cache-v1-
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - save_cache:
+          key: npm-cache-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+
+  run-tests:
+    description: "Run Playwright tests, optionally filtered by tag"
+    parameters:
+      tags:
+        type: string
+        default: ""
+      workers:
+        type: integer
+        default: 4
+    steps:
+      - run:
+          name: Run Playwright tests
+          command: |
+            GREP_ARGS=""
+            if [ -n "<< parameters.tags >>" ]; then
+              GREP_ARGS="--grep << parameters.tags >>"
+            fi
+
+            npx playwright test \
+              --workers=<< parameters.workers >> \
+              $GREP_ARGS \
+              --reporter=list,html
+          environment:
+            HEADLESS: "true"
+            CI: "true"
+      - store_artifacts:
+          path: playwright-report
+          destination: playwright-report
+      - store_artifacts:
+          path: test-results
+          destination: test-results
+
+  notify-slack-on-failure:
+    steps:
+      - slack/notify:
+          event: fail
+          template: basic_fail_1
+          channel: $SLACK_CHANNEL_ID
+          mentions: "@here"
+
+  notify-slack-on-success:
+    steps:
+      - slack/notify:
+          event: pass
+          template: basic_success_1
+          channel: $SLACK_CHANNEL_ID
+
+# ─── Jobs ──────────────────────────────────────────────────────────────────────
+
+jobs:
+  # ── Runs the suite filtered by the `tags` pipeline parameter ─────────────────
+  run-web-tests:
+    executor: playwright-executor
+    steps:
+      - checkout
+      - install-deps
+      - run-tests:
+          tags: << pipeline.parameters.tags >>
+          workers: << pipeline.parameters.workers >>
+      - notify-slack-on-failure
+      - notify-slack-on-success
+
+  # ── Smoke test job (fast, critical-path checks) ───────────────────────────────
+  smoke-tests:
+    executor: playwright-executor
+    steps:
+      - checkout
+      - install-deps
+      - run-tests:
+          tags: "@smoke"
+          workers: 4
+      - notify-slack-on-failure
+      - notify-slack-on-success
+
+  # ── Regression test job (full suite) ──────────────────────────────────────────
+  regression-tests:
+    executor: playwright-executor
+    steps:
+      - checkout
+      - install-deps
+      - run-tests:
+          tags: "@regression"
+          workers: 4
+      - notify-slack-on-failure
+      - notify-slack-on-success
+
+# ─── Workflows ─────────────────────────────────────────────────────────────────
+
+workflows:
+  # ── Runs on every push, filtered by the `tags` pipeline parameter ────────────
+  # Defaults to @smoke for fast feedback; trigger via API with tags="@regression"
+  # (or "" for the full suite) to run something else.
+  on-commit:
+    jobs:
+      - run-web-tests
+
+  # ── Scheduled nightly smoke tests ────────────────────────────────────────────
+  nightly-smoke:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"   # Every day at midnight UTC
+          filters:
+            branches:
+              only: main
+    jobs:
+      - smoke-tests
+
+  # ── Scheduled weekly regression ──────────────────────────────────────────────
+  weekly-regression:
+    triggers:
+      - schedule:
+          cron: "0 18 * * 0"  # Every Sunday at 6 PM UTC
+          filters:
+            branches:
+              only: main
+    jobs:
+      - regression-tests

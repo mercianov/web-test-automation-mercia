@@ -1,0 +1,20 @@
+{
+  "name": "web-test-automation-mercia",
+  "version": "1.0.0",
+  "description": "Web automation framework for Sauce Demo (https://www.saucedemo.com/) using Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen $BASE_URL"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
+}
